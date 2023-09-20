@@ -36,12 +36,12 @@ import plotly.graph_objects as go
 import plotly.subplots as sp
 import gradio as gr
 
-import cv2
+
 import os
 import numpy as np
 import pandas as pd
-from video_analysis import VideoAnalyzer
-from media_processor import get_meta_from_video
+from libs.video_analysis import VideoAnalyzer
+from libs.media_processor import get_meta_from_video
 
 
 def object_selector(frame, evt:gr.SelectData):

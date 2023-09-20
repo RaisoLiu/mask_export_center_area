@@ -12,6 +12,7 @@ class ColorObject:
         self.x = []
         self.y = []
         self.area = []
+        self.labels = []
 
     def process_frame(self, frame):
         mask = np.zeros_like(frame[:, :, 0])
@@ -33,10 +34,12 @@ class ColorObject:
             self.x.append(centroids[max_label + 1][0])
             self.y.append(centroids[max_label + 1][1])
             self.area.append(areas[max_label])
+            self.labels.append(labels == (max_label+1))
         else:
-            self.x.append(None)
-            self.y.append(None)
-            self.area.append(None)
+            self.x.append(np.nan)
+            self.y.append(np.nan)
+            self.area.append(np.nan)
+            self.labels.append(np.zeros_like(mask, dtype=numpy.bool_))
 
 
 class VideoAnalyzer:
