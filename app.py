@@ -1,36 +1,7 @@
 # # app.py
 
-
-class Plotter:
-    @staticmethod
-    def plot_area(results):
-        fig = go.Figure()
-
-        for color_obj in results.values():
-            fig.add_trace(go.Scatter(x=list(range(len(color_obj.area))),
-                          y=color_obj.area, mode='lines', name=f'{color_obj.name} area'))
-
-        return fig
-
-    @staticmethod
-    def plot_coordinates(results):
-        num = len(results)
-        fig = sp.make_subplots(
-            rows=num, cols=1, subplot_titles=list(results.keys()))
-
-        row_col = [(i+1, 1) for i in range(num)]
-        for idx, color_obj in enumerate(results.values()):
-            r, c = row_col[idx]
-            fig.add_trace(go.Scatter(x=list(range(len(color_obj.x))),
-                          y=color_obj.x, mode='lines', name=f'{color_obj.name} x'), r, c)
-            fig.add_trace(go.Scatter(x=list(range(len(color_obj.y))),
-                          y=color_obj.y, mode='lines', name=f'{color_obj.name} y'), r, c)
-
-        fig.update_layout(title_text="XY-coordinates of the colors over time")
-        return fig
-
-
-
+import cv2
+from tqdm import tqdm
 
 import plotly.graph_objects as go
 import plotly.subplots as sp
@@ -40,16 +11,41 @@ import gradio as gr
 import os
 import numpy as np
 import pandas as pd
+import platform
+os_sys = platform.uname().system
+
 from libs.video_analysis import VideoAnalyzer
 from libs.media_processor import get_meta_from_video
+from libs.plotter import Plotter
+from libs.dinov2_latent_generator import DinoV2latentGen
+model_cfg = {
+    'name': 'dinov2_vitb14',
+    'struct': 'dinov2/',
+    'path': 'dinov2_vitb14_pretrain.pth',
+}
+device = "mps" if os_sys == 'Darwin' else "cuda"
+latentGenerator = DinoV2latentGen(model_cfg, device)
+latent_dim = latentGenerator.model.embed_dim
 
+import torchvision.transforms as tt
+resolution = 518
+img2tensor = tt.Compose([
+    tt.ToTensor(), # range [0, 255] -> [0.0,1.0]
+    tt.Resize((resolution, resolution), antialias=True),
+    tt.Normalize(mean=0.5, std=0.2), # range [0.0,1.0] -> [-2.5, 2.5]
+])
 
+img2mask = tt.Compose([
+    tt.ToTensor(), # range [0, 255] -> [0.0,1.0]
+    tt.Resize((resolution, resolution), antialias=True),
+])
 def object_selector(frame, evt:gr.SelectData):
     point = (evt.index[0], evt.index[1])
 
     return frame[point[1], point[0]], "click: " + str(point) + ", color: " + str(frame[point[1], point[0]])
 
 def add_obj(obj, objs):
+    objs = []
     objs.append(obj)
 
     return objs, f"obj list count: {len(objs)}"
@@ -57,12 +53,49 @@ def add_obj(obj, objs):
 def clean_objs():
     return []
 
-def plot_traces(input_video, objects, progress=gr.Progress()):
+def get_representation(vin, results, progress):
+    cap = cv2.VideoCapture(vin.name)
+    n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    latents = []
+    for i in progress.tqdm(range(n)):
+        ok, image = cap.read()
+        assert ok, "[E] Video Reading Error"
+        for it in results:
+            mask = np.array(results[it].labels[i], dtype=float)
+            break
+        tmask = img2mask(mask)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        tensor = img2tensor(image)
+        latent = latentGenerator.single_run(tensor)
+        latent = latent.reshape((37, 37, latent_dim))
+        small_mask = np.zeros((37, 37))
+        small_mask = tmask[0].reshape(resolution//14, 14, resolution//14, 14).sum(axis=(1, 3))
+        sum_mask = small_mask.sum()
+        result = small_mask[:, :, np.newaxis] * latent
+        latent_mask_ave = result.sum(axis=0).sum(axis=0) / sum_mask
+        latents.append(latent_mask_ave)
+
+        # if i == 5:
+        #     break
+
+    cap.release()
+    latents = np.array(latents)
+    return latents
+
+def plot_traces(input_video, raw_video, objects, progress=gr.Progress()):
     analyzer = VideoAnalyzer(objects)
     results = analyzer.process_video(input_video.name, progress)
+    latents = get_representation(raw_video, results, progress)
 
+    return Plotter.plot_coordinates(results), Plotter.plot_area(results), result_2_csv(input_video, results), result_2_npy(input_video, latents), "plot_traces"
 
-    return Plotter.plot_coordinates(results), Plotter.plot_area(results), result_2_csv(input_video, results), "plot_traces"
+def result_2_npy(input_video, latents):
+    os.makedirs("./export/", exist_ok=True)
+
+    export_name = "./export/" + input_video.name.split('/')[-1].split('.')[0] + '.npy'
+    print(export_name)
+    np.save(export_name, latents)
+    return export_name
 
 def result_2_csv(input_video, results):
     num = len(results)
@@ -108,8 +141,8 @@ with app:
     with gr.Row():
         with gr.Column(scale=0.5):
 
-            input_video = gr.File(label='Input video', height=100)
-
+            input_video = gr.File(label='Mask video', height=100)
+            raw_video = gr.File(label='Raw video', height=100)
             result_frame = gr.Image(
                 label='Crop result of first frame', height=550, interactive=True)
 
@@ -136,6 +169,7 @@ with app:
             trace_plot = gr.Plot(label='Trace result')
             area_plot = gr.Plot(label='Area result')
             output_file = gr.File(label="Download CSV file")
+            npy_file = gr.File(label="Download NPY file")
             pass
 
         # Back-end
@@ -175,10 +209,10 @@ with app:
         plot_trace.click(
             fn=plot_traces,
             inputs=[
-                input_video, objects
+                input_video, raw_video, objects
             ],
             outputs=[
-                trace_plot, area_plot, output_file, log
+                trace_plot, area_plot, output_file, npy_file, log
             ]
         )
 
