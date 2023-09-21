@@ -39,7 +39,7 @@ class ColorObject:
             self.x.append(np.nan)
             self.y.append(np.nan)
             self.area.append(np.nan)
-            self.labels.append(np.zeros_like(mask, dtype=numpy.bool_))
+            self.labels.append(np.zeros_like(mask, dtype=np.bool_))
 
 
 class VideoAnalyzer:
