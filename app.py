@@ -59,7 +59,9 @@ def get_representation(vin, results, progress):
     latents = []
     for i in progress.tqdm(range(n)):
         ok, image = cap.read()
-        assert ok, "[E] Video Reading Error"
+        if not ok:
+            print("[E] Video Reading Error")
+            break
         for it in results:
             mask = np.array(results[it].labels[i], dtype=float)
             break
