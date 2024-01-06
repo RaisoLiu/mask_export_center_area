@@ -19,9 +19,9 @@ from libs.media_processor import get_meta_from_video
 from libs.plotter import Plotter
 from libs.dinov2_latent_generator import DinoV2latentGen
 model_cfg = {
-    'name': 'dinov2_vitb14',
+    'name': 'dinov2_vitb14_reg',
     'struct': 'dinov2/',
-    'path': 'dinov2_vitb14_pretrain.pth',
+    'path': 'dinov2_vitb14_reg4_pretrain.pth',
 }
 device = "mps" if os_sys == 'Darwin' else "cuda"
 latentGenerator = DinoV2latentGen(model_cfg, device)
