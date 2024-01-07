@@ -153,7 +153,7 @@ def create_ui(OS_SYS):
                 mask_video = gr.File(label='Mask video', height=100)
                 raw_video = gr.File(label='Raw video', height=100)
                 first_frame = gr.Image(label='Select ROI', height=550, interactive=True)
-                batch_size = gr.Textbox(label='Batch Size', interactive=True)
+                batch_size = gr.Textbox(label='Batch Size', value='16', interactive=True)
                 log = gr.Textbox()
                 start_btn = gr.Button(value="Generate Latent", interactive=True,)
 
