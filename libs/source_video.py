@@ -35,7 +35,12 @@ class SourceVideo:
         assert frame_index >= 0 and frame_index < self.total_frames
         
         if frame_index == self.index + 1:
-            return next(self.container.decode(self.video_stream))
+            try:
+                self.index = frame_index
+                return next(self.container.decode(self.video_stream))
+            except:
+                pass
+        
         
 
         timestamp = frame_index / self.pts2index
