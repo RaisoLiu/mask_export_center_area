@@ -66,7 +66,7 @@ class CustomImageDataset(Dataset):
 
 
     def __len__(self):
-        return self.source_video.total_frames
+        return min(self.source_video.total_frames, self.mask_video.total_frames)
 
     def __getitem__(self, index):
         frame = self.source_video.read_by_index(index).to_rgb().to_ndarray()
