@@ -57,13 +57,20 @@ def get_representation(vin, results, progress):
     cap = cv2.VideoCapture(vin.name)
     n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     latents = []
+    
     for i in progress.tqdm(range(n)):
         ok, image = cap.read()
         if not ok:
             print("[E] Video Reading Error")
             break
         for it in results:
-            mask = np.array(results[it].labels[i], dtype=float)
+            if i < len(results[it].labels):
+                mask = np.array(results[it].labels[i], dtype=float)
+            else:
+                ok = False
+            break
+        if not ok:
+            print("[E] mask Reading Error")
             break
         tmask = img2mask(mask)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
